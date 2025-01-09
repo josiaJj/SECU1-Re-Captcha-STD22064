@@ -1,1 +1,88 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECU1 Captcha STD22064</title>
+    <script type="text/javascript" src="https://b82b1763d1c3.eu-west-3.captcha-sdk.awswaf.com/b82b1763d1c3/jsapi.js" defer></script>
+</head>
+<body>
+    <div id="app">
+        <h1>SECU1 Captcha STD22064</h1>
+        <form id="number-form">
+            <label for="number">Entrer un nombre entre 1 et 1000 :</label>
+            <input type="number" id="number" name="number" min="1" max="1000" required>
+            <button type="submit">Submit</button>
+        </form>
+
+        <div id="sequence-output" style="display:none;"></div>
+        <div id="my-captcha-container" style="display:none;"></div>
+    </div>
+
+    <script>
+        const apiUrl = "https://api.prod.jcloudify.com/whoami";
+        const sequenceOutput = document.getElementById('sequence-output');
+        const form = document.getElementById('number-form');
+        const captchaContainer = document.getElementById('my-captcha-container');
+        let wafToken = null;
+        let requestCount = 0;
+
+        function showCaptcha(callback) {
+            captchaContainer.style.display = "block";
+            AwsWafCaptcha.renderCaptcha(captchaContainer, {
+                apiKey: window.WAF_API_KEY,
+                onSuccess: (token) => {
+                    wafToken = token;
+                    captchaContainer.style.display = "none";
+                    callback(); // Continuer après la résolution
+                },
+                onError: (error) => {
+                    console.error("Erreur CAPTCHA :", error);
+                },
+            });
+        }
+    
+        async function fetchForbidden(index, max, delay, callback) {
+            try {
+                requestCount++;
+                const options = wafToken ? { headers: { 'Authorization': `Bearer ${wafToken}` } } : {};
+                const response = await fetch(apiUrl, options);
+    
+                if (response.status === 405 || requestCount > 100) { // Simuler un seuil pour CAPTCHA
+                    console.log("CAPTCHA requis après seuil atteint.");
+                    showCaptcha(() => fetchForbidden(index, max, delay, callback));
+                    return;
+                }
+    
+                if (response.status === 403) {
+                    sequenceOutput.innerHTML += `<p>${index + 1}. Forbidden</p>`;
+                }
+    
+                if (index + 1 < max) {
+                    setTimeout(() => fetchForbidden(index + 1, max, delay, callback), delay);
+                } else if (callback) {
+                    callback();
+                }
+            } catch (error) {
+                console.error("Erreur lors de la requête :", error);
+            }
+        }
+    
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const number = parseInt(document.getElementById('number').value, 10);
+    
+            if (number >= 1 && number <= 1000) {
+                form.style.display = "none";
+                sequenceOutput.style.display = "block";
+                fetchForbidden(0, number, 1000, () => {
+                    console.log("Séquence terminée.");
+                });
+            } else {
+                alert("Veuillez entrer un nombre entre 1 et 1000.");
+            }
+        });
+    </script>
+    
+</body>
+</html>
